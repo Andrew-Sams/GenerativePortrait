@@ -1,13 +1,9 @@
 # Required Libraries
+import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle, RegularPolygon
-from matplotlib.patches import Ellipse, Polygon, Circle, Arc
-from matplotlib.collections import PatchCollection
-from matplotlib.path import Path
-from matplotlib.animation import FuncAnimation
-import ipywidgets as widgets
-from IPython.display import display
+from matplotlib.patches import Rectangle, Ellipse
+from PIL import Image, ImageDraw
 
 # Define the main facial boundaries more precisely
 backgrounds = {
@@ -113,65 +109,62 @@ features = {
     'lip_divit': Ellipse((0.5, 0.55-0.17), 0.03, 0.04, fill=False),
 }
 
-# Function to fill the background of the face
 def fill_face_background(ax, face_ellipse, color):
     face_bg = Ellipse((face_ellipse.center), face_ellipse.width, face_ellipse.height,
                       facecolor=color, edgecolor='none')
     ax.add_patch(face_bg)
 
 # Function to generate rectangles within a shape
-def generate_rectangles_in_shape(ax, ellipses, depth=1):
+def generate_rectangles_in_shape(ax, ellipses, num_shapes, width_range, height_range, alpha_range, depth=1):
     if depth == 0:
         return
 
-    # Ensure ellipses is a list
     if not isinstance(ellipses, list):
         ellipses = [ellipses]
 
     new_ellipses = []
     for ellipse in ellipses:
         center, width, height = ellipse.center, ellipse.width, ellipse.height
-        half_w, half_h = width * np.random.uniform (0.2, 0.8), height * np.random.uniform (0.2,0.8)
-        num_ellipses = 2
-        for _ in range(num_ellipses):
-            rect_w = np.random.uniform(np.random.uniform (0.5, 1)* half_w, half_w)
-            rect_h = np.random.uniform(np.random.uniform (0.5, 1) * half_h, half_h)
+        half_w, half_h = width / 2, height / 2
+
+        for _ in range(num_shapes):
+            rect_w = np.random.uniform(*width_range) * half_w
+            rect_h = np.random.uniform(*height_range) * half_h
             rect_x = np.random.uniform(center[0] - half_w + rect_w / 2, center[0] + half_w - rect_w / 2)
             rect_y = np.random.uniform(center[1] - half_h + rect_h / 2, center[1] + half_h - rect_h / 2)
-            color = np.random.choice(['black', 'black'])
-            alpha = np.random.uniform(0.333, 0.5)
+            color = 'black'
+            alpha = np.random.uniform(*alpha_range)
             rect = Rectangle((rect_x - rect_w / 2, rect_y - rect_h / 2), rect_w, rect_h, facecolor=color, alpha=alpha, edgecolor='none')
             ax.add_patch(rect)
             new_ellipses.append(Ellipse((rect_x, rect_y), rect_w, rect_h, fill=False))
 
-    generate_rectangles_in_shape(ax, new_ellipses, depth - 1)
+    generate_rectangles_in_shape(ax, new_ellipses, num_shapes, width_range, height_range, alpha_range, depth - 1)
 
 # Function to generate colored layers in a shape
-def generate_colored_layers_in_shape(ax, ellipses, color_palette, depth=1):
+def generate_colored_layers_in_shape(ax, ellipses, color_palette, num_shapes, width_range, height_range, alpha_range, depth=1):
     if depth == 0:
         return
 
-    # Ensure ellipses is a list
     if not isinstance(ellipses, list):
         ellipses = [ellipses]
 
     new_ellipses = []
     for ellipse in ellipses:
         center, width, height = ellipse.center, ellipse.width, ellipse.height
-        half_w, half_h = width * np.random.uniform (0.2, 0.8), height * np.random.uniform (0.2, 0.8)
-        num_ellipses = 2
-        for _ in range(num_ellipses):
-            rect_w = np.random.uniform(np.random.uniform (0.5, 1) * half_w, half_w)
-            rect_h = np.random.uniform(np.random.uniform (0.5, 1) * half_h, half_h)
+        half_w, half_h = width / 2, height / 2
+
+        for _ in range(num_shapes):
+            rect_w = np.random.uniform(*width_range) * half_w
+            rect_h = np.random.uniform(*height_range) * half_h
             rect_x = np.random.uniform(center[0] - half_w + rect_w / 2, center[0] + half_w - rect_w / 2)
             rect_y = np.random.uniform(center[1] - half_h + rect_h / 2, center[1] + half_h - rect_h / 2)
             color = np.random.choice(color_palette)
-            alpha = np.random.uniform(0.1, 0.333)
+            alpha = np.random.uniform(*alpha_range)
             rect = Rectangle((rect_x - rect_w / 2, rect_y - rect_h / 2), rect_w, rect_h, facecolor=color, alpha=alpha, edgecolor='none')
             ax.add_patch(rect)
             new_ellipses.append(Ellipse((rect_x, rect_y), rect_w, rect_h, fill=False))
 
-    generate_colored_layers_in_shape(ax, new_ellipses, color_palette, depth - 1)
+    generate_colored_layers_in_shape(ax, new_ellipses, color_palette, num_shapes, width_range, height_range, alpha_range, depth - 1)
 
 # Color palettes
 background_colors = ['#FFFFFF','#000000']
@@ -201,91 +194,40 @@ feature_color_palettes = {
     #'left_ear': skin_tones, 'right_ear': skin_tones
 }
 
-# Updated Update Function for the Animation
-def updated_update_animation(frame):
-    ax.clear()
+# Streamlit Interface
+def main():
+    st.title("Generative Portrait with Streamlit")
+    
+    # User Inputs
+    num_shapes = st.slider("Number of Shapes per Step", 1, 10, 3)
+    width_range = (st.slider("Min Width Multiplier", 0.1, 1.0, 0.2), st.slider("Max Width Multiplier", 0.1, 1.0, 0.8))
+    height_range = (st.slider("Min Height Multiplier", 0.1, 1.0, 0.2), st.slider("Max Height Multiplier", 0.1, 1.0, 0.8))
+    alpha_range = (st.slider("Min Alpha", 0.0, 1.0, 0.1), st.slider("Max Alpha", 0.0, 1.0, 0.3))
+    recursive_depth = st.slider("Recursive Depth", 1, 5, 2)
+
+    # Define some sample boundaries (e.g., face, eyes)
+    # Note: Replace these with your actual boundaries or shapes
+    face_boundaries = [Ellipse((0.5, 0.55), 0.4, 0.7, fill=False)]
+
+    # Placeholder for the matplotlib figure
+    fig_placeholder = st.empty()
+
+    # Create the figure
+    fig, ax = plt.subplots()
     ax.set_aspect('equal', adjustable='box')
     ax.axis('off')
     ax.set_xlim(0.0, 1.0)
     ax.set_ylim(0.0, 1.0)
 
+    # Plotting
+    for boundary in face_boundaries:
+        generate_rectangles_in_shape(ax, boundary, num_shapes, width_range, height_range, alpha_range, recursive_depth)
 
-    # Applying face background color
-    for background in backgrounds.values():
-        fill_face_background(ax, background, "black")
+    # Save the figure as an image and display
+    fig_path = 'generated_portrait.png'
+    fig.savefig(fig_path)
+    image = Image.open(fig_path)
+    fig_placeholder.image(image)
 
-    # Applying background color
-    for background in backgrounds.values():
-        generate_colored_layers_in_shape(ax, background, black_and_white, depth=2)
-
-    for boundary in face_boundaries.values():
-        generate_rectangles_in_shape(ax, boundary, depth=1)
-        #generate_rectangles_in_shape(ax, boundary, depth=1)
-        #generate_rectangles_in_shape(ax, boundary, depth=3)
-    for background in face_backgrounds.values():
-        generate_colored_layers_in_shape(ax, background, black_and_white, depth=1)
-        generate_colored_layers_in_shape(ax, background, skin_tones, depth=1)
-        #generate_colored_layers_in_shape(ax, face, white, depth=1)
-        #generate_colored_layers_in_shape(ax, face, white, depth=3)
-    #for face in face_backgrounds.values():
-        #generate_colored_layers_in_shape(ax, face, skin_tones, depth=1)
-
-    # Applying colored layers with reduced depth
-    #for boundary in face_boundaries.values():
-        #generate_colored_layers_in_shape(ax, boundary, white, depth=1)
-    for boundary in face_boundaries.values():
-        #generate_colored_layers_in_shape(ax, boundary, black_and_white, depth=2)
-        generate_colored_layers_in_shape(ax, boundary, skin_tones, depth=2)
-        #generate_colored_layers_in_shape(ax, boundary, skin_tones, depth=3)
-    #for feature_name in features.values():
-        #generate_colored_layers_in_shape(ax, feature_name, black, depth=1)
-    for hair in hair_boundaries.values():
-        generate_colored_layers_in_shape(ax, hair, white, depth=1)
-        generate_colored_layers_in_shape(ax, hair, white, depth=1)
-        #generate_colored_layers_in_shape(ax, hair, black_and_white, depth=1)
-        #generate_colored_layers_in_shape(ax, hair, black_and_white, depth=3)
-    #for hair in hair_boundaries.values():
-        #generate_rectangles_in_shape(ax, black_and_white, depth=3)
-        #generate_rectangles_in_shape(ax, boundary, depth=3)
-        #generate_rectangles_in_shape(ax, boundary, depth=3)
-        #generate_rectangles_in_shape(ax, boundary, depth=2)
-        #generate_rectangles_in_shape(ax, boundary, depth=1)
-
-    #for boundary in face_boundaries.values():
-        #generate_rectangles_in_shape(ax, boundary, depth=2)
-        #generate_rectangles_in_shape(ax, boundary, depth=1)
-        #generate_rectangles_in_shape(ax, boundary, depth=3)
-
-    for boundary in face_boundaries.values():
-        #generate_colored_layers_in_shape(ax, boundary, black_and_white, depth=2)
-        generate_colored_layers_in_shape(ax, boundary, black_and_white, depth=1)
-        #generate_colored_layers_in_shape(ax, boundary, skin_tones, depth=3)
-    for feature_shape in features.values():
-        #generate_rectangles_in_shape(ax, feature_shape, depth=2)
-        #generate_rectangles_in_shape(ax, feature_shape, depth=3)
-        #generate_rectangles_in_shape(ax, feature_shape, depth=1)
-        #generate_rectangles_in_shape(ax, feature_shape, depth=4)
-        generate_rectangles_in_shape(ax, feature_shape, depth=3)
-
-    for feature_name, feature_shape in features.items():
-        generate_colored_layers_in_shape(ax, feature_shape, feature_color_palettes[feature_name], depth=1)
-        #generate_colored_layers_in_shape(ax, feature_shape, feature_color_palettes[feature_name], depth=2)
-        #generate_colored_layers_in_shape(ax, feature_shape, feature_color_palettes[feature_name], depth=3)
-
-    # Applying background color
-    for background in backgrounds.values():
-        generate_colored_layers_in_shape(ax, background, black_and_white, depth=1)
-        #generate_colored_layers_in_shape(ax, background, black_and_white, depth=1)
-        #generate_colored_layers_in_shape(ax, background, black_and_white, depth=3)
-
-    return ax
-
-# Create and Save the Animation
-fig, apx = plt.subplots(figsize=(5, 5), dpi=100)
-num_frames = 8  # Number of frames in the animation
-
-# The rest of your code remains the same
-updated_animation = FuncAnimation(fig, updated_update_animation, frames=num_frames, interval=300)
-updated_animation_path = 'updated_integrated_portrait_animation.gif'
-updated_animation.save(updated_animation_path, writer='Pillow', fps=2)
-plt.close(fig)
+if __name__ == "__main__":
+    main()
