@@ -205,10 +205,6 @@ def main():
     alpha_range = (st.slider("Min Alpha", 0.0, 1.0, 0.1), st.slider("Max Alpha", 0.0, 1.0, 0.3))
     recursive_depth = st.slider("Recursive Depth", 1, 5, 2)
 
-    # Define some sample boundaries (e.g., face, eyes)
-    # Note: Replace these with your actual boundaries or shapes
-    face_boundaries = [Ellipse((0.5, 0.55), 0.4, 0.7, fill=False)]
-
     # Placeholder for the matplotlib figure
     fig_placeholder = st.empty()
 
@@ -219,9 +215,22 @@ def main():
     ax.set_xlim(0.0, 1.0)
     ax.set_ylim(0.0, 1.0)
 
-    # Plotting
-    for boundary in face_boundaries:
-        generate_rectangles_in_shape(ax, boundary, num_shapes, width_range, height_range, alpha_range, recursive_depth)
+    # Plotting for each boundary group
+    for background in backgrounds.values():
+        generate_colored_layers_in_shape(ax, background, black_and_white, num_shapes, width_range, height_range, alpha_range, recursive_depth)
+
+    for face_background in face_backgrounds.values():
+        fill_face_background(ax, face_background, 'black')
+        generate_colored_layers_in_shape(ax, face_background, skin_tones, num_shapes, width_range, height_range, alpha_range, recursive_depth)
+
+    for hair_boundary in hair_boundaries.values():
+        generate_colored_layers_in_shape(ax, hair_boundary, hair_colors, num_shapes, width_range, height_range, alpha_range, recursive_depth)
+
+    for face_boundary in face_boundaries.values():
+        generate_rectangles_in_shape(ax, face_boundary, num_shapes, width_range, height_range, alpha_range, recursive_depth)
+
+    for feature_name, feature_shape in features.items():
+        generate_colored_layers_in_shape(ax, feature_shape, feature_color_palettes[feature_name], num_shapes, width_range, height_range, alpha_range, recursive_depth)
 
     # Save the figure as an image and display
     fig_path = 'generated_portrait.png'
